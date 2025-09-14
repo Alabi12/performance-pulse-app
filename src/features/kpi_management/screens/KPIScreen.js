@@ -1,6 +1,6 @@
 // src/features/kpi_management/screens/KPIScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,8 +18,9 @@ import {
 const KPIScreen = () => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
-  const { kpis, isLoading } = useSelector((state) => state.kpi);
+  const { kpis, isLoading: kpisLoading } = useSelector((state) => state.kpi);
   const user = useSelector((state) => state.auth.user);
+  const authLoading = useSelector((state) => state.auth.isLoading);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingKPI, setEditingKPI] = useState(null);
   const [formData, setFormData] = useState({
@@ -32,14 +33,22 @@ const KPIScreen = () => {
   });
 
   useEffect(() => {
-    dispatch(fetchKPIs());
-  }, [dispatch]);
+    if (user) {
+      dispatch(fetchKPIs());
+    }
+  }, [dispatch, user]);
 
   const isManager = user?.role === 'manager';
 
   const handleSubmit = () => {
     if (!formData.title || !formData.targetValue || !formData.deadline) {
       Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    // Check if user exists before accessing user.id
+    if (!user || !user.id) {
+      Alert.alert('Error', 'User information not available. Please try again.');
       return;
     }
 
@@ -141,7 +150,33 @@ const KPIScreen = () => {
     return '#EF4444';
   };
 
-  const filteredKPIs = isManager ? kpis : kpis.filter(kpi => kpi.createdBy === user.id);
+  // Safe filteredKPIs with null checks
+  const filteredKPIs = isManager ? (kpis || []) : (kpis || []).filter(kpi => user && kpi.createdBy === user.id);
+
+  // Show loading state while authentication is being checked
+  if (authLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6366F1" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Show authentication required screen if user is not logged in
+  if (!user) {
+    return (
+      <View style={styles.authContainer}>
+        <Ionicons name="lock-closed" size={48} color="#6366F1" />
+        <Text style={styles.authText}>Please log in to access goals</Text>
+        <Button
+          title="Go to Login"
+          onPress={() => navigation.navigate('Auth')}
+          style={styles.authButton}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -180,21 +215,21 @@ const KPIScreen = () => {
             <View style={styles.statCard}>
               <Ionicons name="trophy" size={24} color="#6366F1" />
               <Text style={styles.statNumber}>
-                {filteredKPIs.filter(k => k.status === 'approved').length}
+                {(filteredKPIs || []).filter(k => k.status === 'approved').length}
               </Text>
               <Text style={styles.statLabel}>Active Goals</Text>
             </View>
             <View style={styles.statCard}>
               <Ionicons name="trending-up" size={24} color="#10B981" />
               <Text style={styles.statNumber}>
-                {filteredKPIs.length > 0 ? Math.round(filteredKPIs.reduce((sum, kpi) => sum + calculateProgress(kpi.currentValue, kpi.targetValue), 0) / filteredKPIs.length) : 0}%
+                {(filteredKPIs || []).length > 0 ? Math.round((filteredKPIs || []).reduce((sum, kpi) => sum + calculateProgress(kpi.currentValue, kpi.targetValue), 0) / filteredKPIs.length) : 0}%
               </Text>
               <Text style={styles.statLabel}>Avg Progress</Text>
             </View>
             <View style={styles.statCard}>
               <Ionicons name="time" size={24} color="#F59E0B" />
               <Text style={styles.statNumber}>
-                {filteredKPIs.filter(k => k.status === 'pending').length}
+                {(filteredKPIs || []).filter(k => k.status === 'pending').length}
               </Text>
               <Text style={styles.statLabel}>Pending</Text>
             </View>
@@ -221,7 +256,7 @@ const KPIScreen = () => {
         )}
 
         {/* KPI Cards */}
-        {filteredKPIs.map((kpi) => {
+        {(filteredKPIs || []).map((kpi) => {
           const progress = calculateProgress(kpi.currentValue, kpi.targetValue);
           const isOverdue = new Date(kpi.deadline) < new Date() && progress < 100;
           
@@ -292,7 +327,7 @@ const KPIScreen = () => {
                     </Text>
                   </View>
                   <View style={styles.metaItem}>
-                    <Ionicons name="pricetag" size={14} color="#6B7280" />
+                    <Ionicons name="pricetag" size={14} color='#6B7280' />
                     <Text style={styles.category}>
                       {kpi.category}
                     </Text>
@@ -342,7 +377,7 @@ const KPIScreen = () => {
           );
         })}
 
-        {filteredKPIs.length === 0 && (
+        {(filteredKPIs || []).length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="flag-outline" size={48} color="#9CA3AF" />
             <Text style={styles.emptyText}>No goals found</Text>
@@ -451,6 +486,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  authContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 20,
+  },
+  authText: {
+    fontSize: 18,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginVertical: 16,
+  },
+  authButton: {
+    marginTop: 20,
   },
   header: {
     paddingTop: Platform.OS === 'ios' ? 60 : 30,
