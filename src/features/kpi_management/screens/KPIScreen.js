@@ -1,7 +1,10 @@
 // src/features/kpi_management/screens/KPIScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert, Platform } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import { 
@@ -14,6 +17,7 @@ import {
 
 const KPIScreen = () => {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const { kpis, isLoading } = useSelector((state) => state.kpi);
   const user = useSelector((state) => state.auth.user);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -40,13 +44,11 @@ const KPIScreen = () => {
     }
 
     if (editingKPI) {
-      // Update existing KPI
       dispatch(updateKPIProgress({
         id: editingKPI.id,
         currentValue: parseFloat(formData.currentValue)
       }));
     } else {
-      // Create new KPI
       dispatch(createKPI({
         ...formData,
         targetValue: parseFloat(formData.targetValue),
@@ -91,8 +93,8 @@ const KPIScreen = () => {
 
   const handleDelete = (kpiId) => {
     Alert.alert(
-      'Delete KPI',
-      'Are you sure you want to delete this KPI?',
+      'Delete Goal',
+      'Are you sure you want to delete this goal?',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', onPress: () => dispatch(deleteKPI(kpiId)), style: 'destructive' }
@@ -106,10 +108,19 @@ const KPIScreen = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'approved': return '#28a745';
-      case 'pending': return '#ffc107';
-      case 'rejected': return '#dc3545';
-      default: return '#6c757d';
+      case 'approved': return '#10B981';
+      case 'pending': return '#F59E0B';
+      case 'rejected': return '#EF4444';
+      default: return '#6B7280';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'approved': return 'checkmark-circle';
+      case 'pending': return 'time';
+      case 'rejected': return 'close-circle';
+      default: return 'help-circle';
     }
   };
 
@@ -124,100 +135,227 @@ const KPIScreen = () => {
     }
   };
 
+  const getProgressColor = (progress) => {
+    if (progress >= 80) return '#10B981';
+    if (progress >= 50) return '#3B82F6';
+    return '#EF4444';
+  };
+
   const filteredKPIs = isManager ? kpis : kpis.filter(kpi => kpi.createdBy === user.id);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Goals & KPIs</Text>
+      {/* Header with Gradient */}
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity 
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.title}>Goals & Objectives</Text>
+            <Text style={styles.subtitle}>
+              {isManager ? 'Team Performance' : 'My Progress'}
+            </Text>
+          </View>
+          <View style={styles.placeholder} />
+        </View>
+      </LinearGradient>
+
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Stats Overview */}
         {!isManager && (
-          <Button
-            title="+ New Goal"
-            onPress={() => setIsModalVisible(true)}
-            style={styles.addButton}
-          />
-        )}
-      </View>
-
-      <ScrollView>
-        {filteredKPIs.map((kpi) => (
-          <View key={kpi.id} style={styles.kpiCard}>
-            <View style={styles.kpiHeader}>
-              <Text style={styles.kpiTitle}>
-                {getCategoryIcon(kpi.category)} {kpi.title}
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <Ionicons name="trophy" size={24} color="#6366F1" />
+              <Text style={styles.statNumber}>
+                {filteredKPIs.filter(k => k.status === 'approved').length}
               </Text>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(kpi.status) }]}>
-                <Text style={styles.statusText}>{kpi.status.toUpperCase()}</Text>
-              </View>
+              <Text style={styles.statLabel}>Active Goals</Text>
             </View>
-
-            <Text style={styles.kpiDescription}>{kpi.description}</Text>
-
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${calculateProgress(kpi.currentValue, kpi.targetValue)}%` }
-                  ]}
-                />
-              </View>
-              <Text style={styles.progressText}>
-                {kpi.currentValue} / {kpi.targetValue} (
-                {Math.round(calculateProgress(kpi.currentValue, kpi.targetValue))}%)
+            <View style={styles.statCard}>
+              <Ionicons name="trending-up" size={24} color="#10B981" />
+              <Text style={styles.statNumber}>
+                {filteredKPIs.length > 0 ? Math.round(filteredKPIs.reduce((sum, kpi) => sum + calculateProgress(kpi.currentValue, kpi.targetValue), 0) / filteredKPIs.length) : 0}%
               </Text>
+              <Text style={styles.statLabel}>Avg Progress</Text>
             </View>
-
-            <View style={styles.kpiMeta}>
-              <Text style={styles.deadline}>
-                Deadline: {new Date(kpi.deadline).toLocaleDateString()}
+            <View style={styles.statCard}>
+              <Ionicons name="time" size={24} color="#F59E0B" />
+              <Text style={styles.statNumber}>
+                {filteredKPIs.filter(k => k.status === 'pending').length}
               </Text>
-              <Text style={styles.category}>Category: {kpi.category}</Text>
-            </View>
-
-            <View style={styles.actionButtons}>
-              {!isManager && kpi.status === 'pending' && (
-                <Button
-                  title="Edit"
-                  onPress={() => handleEdit(kpi)}
-                  variant="secondary"
-                  style={styles.actionButton}
-                />
-              )}
-
-              {isManager && kpi.status === 'pending' && (
-                <>
-                  <Button
-                    title="Approve"
-                    onPress={() => handleApprove(kpi.id)}
-                    style={styles.actionButton}
-                  />
-                  <Button
-                    title="Reject"
-                    onPress={() => handleDelete(kpi.id)}
-                    variant="danger"
-                    style={styles.actionButton}
-                  />
-                </>
-              )}
-
-              {kpi.status === 'approved' && (
-                <Button
-                  title="Update Progress"
-                  onPress={() => handleEdit(kpi)}
-                  style={styles.actionButton}
-                />
-              )}
+              <Text style={styles.statLabel}>Pending</Text>
             </View>
           </View>
-        ))}
+        )}
+
+        {/* Action Button */}
+        {!isManager && (
+          <TouchableOpacity 
+            style={styles.createButton}
+            onPress={() => setIsModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={['#818cf8', '#6366f1']}
+              style={styles.createButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="add-circle" size={24} color="white" />
+              <Text style={styles.createButtonText}>Create New Goal</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {/* KPI Cards */}
+        {filteredKPIs.map((kpi) => {
+          const progress = calculateProgress(kpi.currentValue, kpi.targetValue);
+          const isOverdue = new Date(kpi.deadline) < new Date() && progress < 100;
+          
+          return (
+            <TouchableOpacity 
+              key={kpi.id} 
+              style={styles.kpiCard}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={['#FFFFFF', '#F8FAFC']}
+                style={styles.kpiGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.kpiHeader}>
+                  <View style={styles.kpiTitleContainer}>
+                    <Text style={styles.categoryIcon}>
+                      {getCategoryIcon(kpi.category)}
+                    </Text>
+                    <Text style={styles.kpiTitle} numberOfLines={1}>
+                      {kpi.title}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(kpi.status) + '20' }]}>
+                    <Ionicons 
+                      name={getStatusIcon(kpi.status)} 
+                      size={14} 
+                      color={getStatusColor(kpi.status)} 
+                    />
+                    <Text style={[styles.statusText, { color: getStatusColor(kpi.status) }]}>
+                      {kpi.status.toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+
+                {kpi.description && (
+                  <Text style={styles.kpiDescription} numberOfLines={2}>
+                    {kpi.description}
+                  </Text>
+                )}
+
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressLabel}>Progress</Text>
+                    <Text style={[styles.progressPercent, { color: getProgressColor(progress) }]}>
+                      {Math.round(progress)}%
+                    </Text>
+                  </View>
+                  <View style={styles.progressBar}>
+                    <LinearGradient
+                      colors={isOverdue ? ['#EF4444', '#DC2626'] : progress >= 80 ? ['#10B981', '#059669'] : ['#3B82F6', '#2563EB']}
+                      style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    />
+                  </View>
+                  <Text style={styles.progressValues}>
+                    {kpi.currentValue} / {kpi.targetValue}
+                  </Text>
+                </View>
+
+                <View style={styles.kpiMeta}>
+                  <View style={styles.metaItem}>
+                    <Ionicons name="calendar" size={14} color="#6B7280" />
+                    <Text style={[styles.deadline, isOverdue && styles.overdueText]}>
+                      {new Date(kpi.deadline).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View style={styles.metaItem}>
+                    <Ionicons name="pricetag" size={14} color="#6B7280" />
+                    <Text style={styles.category}>
+                      {kpi.category}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.actionButtons}>
+                  {!isManager && kpi.status === 'pending' && (
+                    <Button
+                      title="Edit"
+                      onPress={() => handleEdit(kpi)}
+                      variant="secondary"
+                      style={styles.actionButton}
+                      size="small"
+                    />
+                  )}
+
+                  {isManager && kpi.status === 'pending' && (
+                    <>
+                      <Button
+                        title="Approve"
+                        onPress={() => handleApprove(kpi.id)}
+                        style={styles.actionButton}
+                        size="small"
+                      />
+                      <Button
+                        title="Reject"
+                        onPress={() => handleDelete(kpi.id)}
+                        variant="danger"
+                        style={styles.actionButton}
+                        size="small"
+                      />
+                    </>
+                  )}
+
+                  {kpi.status === 'approved' && (
+                    <Button
+                      title="Update Progress"
+                      onPress={() => handleEdit(kpi)}
+                      style={styles.actionButton}
+                      size="small"
+                    />
+                  )}
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          );
+        })}
 
         {filteredKPIs.length === 0 && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No KPIs found</Text>
+            <Ionicons name="flag-outline" size={48} color="#9CA3AF" />
+            <Text style={styles.emptyText}>No goals found</Text>
             <Text style={styles.emptySubtext}>
-              {isManager ? 'No team members have set KPIs yet' : 'Create your first goal to get started'}
+              {isManager ? 'No team members have set goals yet' : 'Create your first goal to get started'}
             </Text>
+            {!isManager && (
+              <Button
+                title="Create First Goal"
+                onPress={() => setIsModalVisible(true)}
+                style={styles.emptyButton}
+              />
+            )}
           </View>
         )}
       </ScrollView>
@@ -226,69 +364,82 @@ const KPIScreen = () => {
       <Modal visible={isModalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {editingKPI ? 'Edit Goal' : 'Create New Goal'}
-            </Text>
-
-            <Input
-              label="Goal Title *"
-              value={formData.title}
-              onChangeText={(text) => setFormData({ ...formData, title: text })}
-              placeholder="e.g., Increase sales by 20%"
-            />
-
-            <Input
-              label="Description"
-              value={formData.description}
-              onChangeText={(text) => setFormData({ ...formData, description: text })}
-              placeholder="Describe your goal..."
-              multiline
-            />
-
-            <View style={styles.row}>
-              <View style={styles.inputHalf}>
-                <Input
-                  label="Target Value *"
-                  value={formData.targetValue}
-                  onChangeText={(text) => setFormData({ ...formData, targetValue: text })}
-                  placeholder="100"
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={styles.inputHalf}>
-                <Input
-                  label="Current Progress"
-                  value={formData.currentValue}
-                  onChangeText={(text) => setFormData({ ...formData, currentValue: text })}
-                  placeholder="0"
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
-            <Input
-              label="Deadline *"
-              value={formData.deadline}
-              onChangeText={(text) => setFormData({ ...formData, deadline: text })}
-              placeholder="YYYY-MM-DD"
-            />
-
-            <View style={styles.buttonRow}>
-              <Button
-                title="Cancel"
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingKPI ? 'Edit Goal' : 'Create New Goal'}
+              </Text>
+              <TouchableOpacity 
                 onPress={() => {
                   setIsModalVisible(false);
                   resetForm();
                 }}
-                variant="secondary"
-                style={styles.modalButton}
-              />
-              <Button
-                title={editingKPI ? 'Update' : 'Create'}
-                onPress={handleSubmit}
-                style={styles.modalButton}
-              />
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
             </View>
+
+            <ScrollView style={styles.modalScroll}>
+              <Input
+                label="Goal Title *"
+                value={formData.title}
+                onChangeText={(text) => setFormData({ ...formData, title: text })}
+                placeholder="e.g., Increase sales by 20%"
+              />
+
+              <Input
+                label="Description"
+                value={formData.description}
+                onChangeText={(text) => setFormData({ ...formData, description: text })}
+                placeholder="Describe your goal..."
+                multiline
+              />
+
+              <View style={styles.row}>
+                <View style={styles.inputHalf}>
+                  <Input
+                    label="Target Value *"
+                    value={formData.targetValue}
+                    onChangeText={(text) => setFormData({ ...formData, targetValue: text })}
+                    placeholder="100"
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.inputHalf}>
+                  <Input
+                    label="Current Progress"
+                    value={formData.currentValue}
+                    onChangeText={(text) => setFormData({ ...formData, currentValue: text })}
+                    placeholder="0"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              <Input
+                label="Deadline *"
+                value={formData.deadline}
+                onChangeText={(text) => setFormData({ ...formData, deadline: text })}
+                placeholder="YYYY-MM-DD"
+              />
+
+              <View style={styles.buttonRow}>
+                <Button
+                  title="Cancel"
+                  onPress={() => {
+                    setIsModalVisible(false);
+                    resetForm();
+                  }}
+                  variant="secondary"
+                  style={styles.modalButton}
+                />
+                <Button
+                  title={editingKPI ? 'Update' : 'Create'}
+                  onPress={handleSubmit}
+                  style={styles.modalButton}
+                />
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -299,97 +450,208 @@ const KPIScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 16,
+    backgroundColor: '#F8FAFC',
   },
   header: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 30,
+    paddingBottom: 30,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTextContainer: {
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 4,
   },
-  addButton: {
-    width: 100,
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
-  kpiCard: {
+  placeholder: {
+    width: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingTop: 24,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
     backgroundColor: 'white',
     padding: 20,
-    borderRadius: 12,
-    marginBottom: 16,
+    borderRadius: 20,
+    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginVertical: 8,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  createButton: {
+    marginBottom: 24,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  createButtonGradient: {
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  createButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  kpiCard: {
+    backgroundColor: 'transparent',
+    borderRadius: 20,
+    marginBottom: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  kpiGradient: {
+    padding: 24,
   },
   kpiHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  kpiTitleContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    flex: 1,
+    gap: 12,
+  },
+  categoryIcon: {
+    fontSize: 20,
   },
   kpiTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
+    color: '#1F2937',
     flex: 1,
   },
   statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   statusText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: '600',
   },
   kpiDescription: {
-    color: '#666',
-    marginBottom: 15,
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
     lineHeight: 20,
   },
   progressContainer: {
-    marginBottom: 15,
+    marginBottom: 16,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  progressPercent: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#e9ecef',
+    backgroundColor: '#F3F4F6',
     borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: 5,
+    marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#28a745',
     borderRadius: 4,
   },
-  progressText: {
+  progressValues: {
     fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
+    color: '#9CA3AF',
+    textAlign: 'right',
   },
   kpiMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    marginBottom: 16,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   deadline: {
     fontSize: 12,
-    color: '#666',
+    color: '#6B7280',
+  },
+  overdueText: {
+    color: '#EF4444',
+    fontWeight: '600',
   },
   category: {
     fontSize: 12,
-    color: '#666',
+    color: '#6B7280',
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
   actionButton: {
     flex: 1,
@@ -397,15 +659,20 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     padding: 40,
+    gap: 16,
   },
   emptyText: {
     fontSize: 18,
-    color: '#666',
-    marginBottom: 8,
+    fontWeight: '600',
+    color: '#6B7280',
   },
   emptySubtext: {
-    color: '#999',
+    fontSize: 14,
+    color: '#9CA3AF',
     textAlign: 'center',
+  },
+  emptyButton: {
+    marginTop: 16,
   },
   modalContainer: {
     flex: 1,
@@ -415,26 +682,39 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: 'white',
     margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    borderRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalScroll: {
+    padding: 24,
   },
   row: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   inputHalf: {
     flex: 1,
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 20,
+    gap: 12,
+    marginTop: 8,
   },
   modalButton: {
     flex: 1,

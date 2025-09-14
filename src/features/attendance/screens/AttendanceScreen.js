@@ -1,13 +1,17 @@
 // src/features/attendance/screens/AttendanceScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Button from '../../../components/ui/Button';
 import { clockIn, clockOut, loadAttendanceHistory } from '../../../store/slices/attendanceSlice';
 import { getCurrentPosition } from '../../../services/locationService';
 
 const AttendanceScreen = () => {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const { todayAttendance, history, isLoading } = useSelector((state) => state.attendance);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState(null);
@@ -73,174 +77,326 @@ const AttendanceScreen = () => {
 
   const status = getStatus();
 
+  const StatCard = ({ icon, value, label, color, gradient }) => (
+    <LinearGradient
+      colors={gradient}
+      style={[styles.statCard, { borderLeftColor: color }]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+    >
+      <View style={[styles.statIcon, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+        {icon}
+      </View>
+      <Text style={styles.statNumber}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </LinearGradient>
+  );
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Time & Attendance</Text>
-        <Text style={styles.currentTime}>
-          {currentTime.toLocaleTimeString()}
-        </Text>
-        <Text style={styles.currentDate}>
-          {currentTime.toLocaleDateString()}
-        </Text>
-      </View>
+    <View style={styles.container}>
+      {/* Header with Gradient */}
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity 
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.title}>Time & Attendance</Text>
+            <Text style={styles.currentDate}>{currentTime.toLocaleDateString()}</Text>
+          </View>
+          <View style={styles.placeholder} />
+        </View>
+      </LinearGradient>
 
-      {/* Status Card */}
-      <View style={styles.statusCard}>
-        <Text style={styles.statusTitle}>Current Status</Text>
-        <View style={[
-          styles.statusIndicator,
-          status === 'clocked-in' && styles.statusClockedIn,
-          status === 'clocked-out' && styles.statusClockedOut,
-          status === 'not-clocked-in' && styles.statusNotClockedIn
-        ]}>
-          <Text style={styles.statusText}>
-            {status === 'clocked-in' && '🟢 CLOCKED IN'}
-            {status === 'clocked-out' && '🔴 CLOCKED OUT'}
-            {status === 'not-clocked-in' && '⚪ NOT CLOCKED IN'}
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Current Time Card */}
+        <View style={styles.timeCard}>
+          <Text style={styles.currentTime}>
+            {currentTime.toLocaleTimeString()}
           </Text>
         </View>
-        
-        {todayAttendance?.clockIn && (
-          <Text style={styles.clockInTime}>
-            Clocked in at: {formatTime(todayAttendance.clockIn.timestamp)}
-          </Text>
-        )}
-        
-        {todayAttendance?.clockOut && (
-          <Text style={styles.clockOutTime}>
-            Clocked out at: {formatTime(todayAttendance.clockOut.timestamp)}
-          </Text>
-        )}
-      </View>
 
-      {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Clock In"
-          onPress={handleClockIn}
-          disabled={status !== 'not-clocked-in' || isLoading}
-          isLoading={isLoading}
-          style={styles.clockInButton}
-        />
-        
-        <Button
-          title="Clock Out"
-          onPress={handleClockOut}
-          disabled={status !== 'clocked-in' || isLoading}
-          isLoading={isLoading}
-          variant="secondary"
-          style={styles.clockOutButton}
-        />
-      </View>
-
-      {/* Location Info */}
-      {location && (
-        <View style={styles.locationCard}>
-          <Text style={styles.locationTitle}>📍 Current Location</Text>
-          <Text style={styles.locationText}>
-            Lat: {location.latitude.toFixed(6)}
-          </Text>
-          <Text style={styles.locationText}>
-            Long: {location.longitude.toFixed(6)}
-          </Text>
-        </View>
-      )}
-
-      {/* Attendance History */}
-      <View style={styles.historySection}>
-        <Text style={styles.historyTitle}>Recent Attendance</Text>
-        {history.slice(0, 7).map((day, index) => (
-          <View key={index} style={styles.historyItem}>
-            <Text style={styles.historyDate}>{formatDate(day.date)}</Text>
-            <View style={styles.historyTimes}>
-              <Text style={styles.historyTime}>In: {day.clockIn ? formatTime(day.clockIn.timestamp) : '--:--'}</Text>
-              <Text style={styles.historyTime}>Out: {day.clockOut ? formatTime(day.clockOut.timestamp) : '--:--'}</Text>
+        {/* Status Card */}
+        <View style={styles.attendanceCard}>
+          <View style={styles.attendanceHeader}>
+            <View style={styles.attendanceTitle}>
+              <Ionicons name="time-outline" size={22} color="#6366F1" />
+              <Text style={styles.cardTitle}>Today's Attendance</Text>
             </View>
           </View>
-        ))}
-        
-        {history.length === 0 && (
-          <Text style={styles.noHistory}>No attendance records yet</Text>
+
+          <View style={styles.attendanceStatus}>
+            <View style={[
+              styles.statusBadge,
+              status === 'clocked-in' && styles.statusClockedIn,
+              status === 'clocked-out' && styles.statusClockedOut,
+              status === 'not-clocked-in' && styles.statusNotClockedIn
+            ]}>
+              <Text style={styles.statusText}>
+                {status === 'clocked-in' && '🟢 Clocked In'}
+                {status === 'clocked-out' && '🔴 Clocked Out'}
+                {status === 'not-clocked-in' && '⚪ Not Clocked In'}
+              </Text>
+            </View>
+          </View>
+
+          {todayAttendance && (
+            <View style={styles.attendanceTimes}>
+              {todayAttendance.clockIn && (
+                <View style={styles.timeRow}>
+                  <Ionicons name="arrow-down-circle" size={18} color="#10B981" />
+                  <Text style={styles.timeText}>
+                    In: {formatTime(todayAttendance.clockIn.timestamp)}
+                  </Text>
+                </View>
+              )}
+              {todayAttendance.clockOut && (
+                <View style={styles.timeRow}>
+                  <Ionicons name="arrow-up-circle" size={18} color="#EF4444" />
+                  <Text style={styles.timeText}>
+                    Out: {formatTime(todayAttendance.clockOut.timestamp)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Clock In"
+            onPress={handleClockIn}
+            disabled={status !== 'not-clocked-in' || isLoading}
+            isLoading={isLoading}
+            style={styles.clockInButton}
+            variant="primary"
+          />
+          
+          <Button
+            title="Clock Out"
+            onPress={handleClockOut}
+            disabled={status !== 'clocked-in' || isLoading}
+            isLoading={isLoading}
+            variant="secondary"
+            style={styles.clockOutButton}
+          />
+        </View>
+
+        {/* Location Info */}
+        {location && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="location" size={22} color="#6366F1" />
+                <Text style={styles.sectionTitle}>Current Location</Text>
+              </View>
+            </View>
+            <View style={styles.locationDetails}>
+              <View style={styles.locationRow}>
+                <Text style={styles.locationLabel}>Latitude:</Text>
+                <Text style={styles.locationValue}>{location.latitude.toFixed(6)}</Text>
+              </View>
+              <View style={styles.locationRow}>
+                <Text style={styles.locationLabel}>Longitude:</Text>
+                <Text style={styles.locationValue}>{location.longitude.toFixed(6)}</Text>
+              </View>
+            </View>
+          </View>
         )}
-      </View>
-    </ScrollView>
+
+        {/* Attendance History */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="calendar" size={22} color="#6366F1" />
+              <Text style={styles.sectionTitle}>Recent Attendance</Text>
+            </View>
+          </View>
+
+          {history.slice(0, 7).map((day, index) => (
+            <View key={index} style={styles.historyItem}>
+              <View style={styles.historyDateContainer}>
+                <Ionicons name="calendar-outline" size={16} color="#6B7280" />
+                <Text style={styles.historyDate}>{formatDate(day.date)}</Text>
+              </View>
+              <View style={styles.historyTimes}>
+                <View style={styles.historyTimeRow}>
+                  <Ionicons name="arrow-down-circle" size={14} color="#10B981" />
+                  <Text style={styles.historyTime}>
+                    {day.clockIn ? formatTime(day.clockIn.timestamp) : '--:--'}
+                  </Text>
+                </View>
+                <View style={styles.historyTimeRow}>
+                  <Ionicons name="arrow-up-circle" size={14} color="#EF4444" />
+                  <Text style={styles.historyTime}>
+                    {day.clockOut ? formatTime(day.clockOut.timestamp) : '--:--'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ))}
+          
+          {history.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="time-outline" size={48} color="#9CA3AF" />
+              <Text style={styles.emptyText}>No attendance records yet</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 16,
+    backgroundColor: '#F8FAFC',
   },
   header: {
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+
+   headerGradient: {
+    paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTextContainer: {
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  currentTime: {
-    fontSize: 18,
-    color: '#666',
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 4,
   },
   currentDate: {
     fontSize: 16,
-    color: '#888',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
-  statusCard: {
+  placeholder: {
+    width: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingTop: 24,
+  },
+  timeCard: {
     backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 20,
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 3,
   },
-  statusTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 10,
-    color: '#333',
+  currentTime: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1F2937',
   },
-  statusIndicator: {
-    padding: 15,
-    borderRadius: 8,
+  attendanceCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  attendanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 20,
+  },
+  attendanceTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  attendanceStatus: {
+    marginBottom: 16,
+  },
+  statusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
   },
   statusClockedIn: {
-    backgroundColor: '#d4edda',
+    backgroundColor: '#D1FAE5',
   },
   statusClockedOut: {
-    backgroundColor: '#f8d7da',
+    backgroundColor: '#FEE2E2',
   },
   statusNotClockedIn: {
-    backgroundColor: '#e2e3e5',
+    backgroundColor: '#FEF3C7',
   },
   statusText: {
-    fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
   },
-  clockInTime: {
-    color: '#28a745',
-    marginTop: 5,
+  attendanceTimes: {
+    marginTop: 16,
+    gap: 12,
   },
-  clockOutTime: {
-    color: '#dc3545',
-    marginTop: 5,
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  timeText: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   buttonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    gap: 10,
+    gap: 16,
+    marginBottom: 24,
   },
   clockInButton: {
     flex: 1,
@@ -248,56 +404,95 @@ const styles = StyleSheet.create({
   clockOutButton: {
     flex: 1,
   },
-  locationCard: {
+  sectionCard: {
     backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 20,
   },
-  locationTitle: {
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#333',
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  locationText: {
-    color: '#666',
-    fontSize: 12,
-  },
-  historySection: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
-  },
-  historyTitle: {
+  sectionTitle: {
     fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  locationDetails: {
+    gap: 12,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  locationLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  locationValue: {
+    fontSize: 14,
+    color: '#1F2937',
     fontWeight: '600',
-    marginBottom: 15,
-    color: '#333',
+    fontFamily: 'monospace',
   },
   historyItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#F3F4F6',
+  },
+  historyDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   historyDate: {
     fontWeight: '500',
-    color: '#333',
+    color: '#1F2937',
   },
   historyTimes: {
     alignItems: 'flex-end',
+    gap: 4,
+  },
+  historyTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   historyTime: {
     fontSize: 12,
-    color: '#666',
+    color: '#6B7280',
+    fontWeight: '500',
   },
-  noHistory: {
-    textAlign: 'center',
-    color: '#999',
-    fontStyle: 'italic',
-    padding: 20,
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+    gap: 16,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '600',
   },
 });
 
